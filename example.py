@@ -1,10 +1,17 @@
 import torch
 import numpy
 import math
+import cv2
+import matplotlib.pyplot as plt
 
 dtype = torch.float
 device = torch.device("cpu")
 # device = torch.device("cuda:0") # Uncomment this to run on GPU
+
+
+exampleImage = cv2.imread('assets/example.png', flags=cv2.IMREAD_GRAYSCALE)
+plt.imshow(exampleImage, cmap='gray')
+
 
 x = numpy.linspace(-math.pi, math.pi, 2000)
 y = numpy.sin(x)
