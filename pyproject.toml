@@ -11,7 +11,14 @@ numpy = "^1.26.4"
 opencv-python = "^4.9.0.80"
 matplotlib = "^3.8.3"
 scipy = "^1.12.0"
+geemap = "^0.32.0"
+mss = "^9.0.1"
+ee = "0.2"
+tensorflow = "^2.16.1"
 
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.4"
 
 [build-system]
 requires = ["poetry-core"]
