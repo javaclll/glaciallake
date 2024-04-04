@@ -12,11 +12,13 @@ def generateAdditionalImages(image):
 
     return rotatedRight, flippedHorizontal, rotateLeft, distoredImage
 
-imagePath = "./data/images"
-maskPath = "./data/masks"
+imagePath = "./images"
+maskPath = "./masks"
 
 imageFiles = os.listdir(imagePath)
 maskFiles = os.listdir(maskPath)
+
+filesNumber = len(imageFiles)
 
 for idx, file in enumerate(imageFiles):
     imagefilePath = os.path.join(imagePath, file)
@@ -28,14 +30,14 @@ for idx, file in enumerate(imageFiles):
     imrotatedRight, imflippedHorizontal, imrotatedLeft, imdistortedImage = generateAdditionalImages(image)
     msrotatedRight, msflippedHorizontal, msrotatedLeft, msdistortedImage = generateAdditionalImages(mask)
 
-    cv2.imwrite(os.path.join(imagePath, f"image_{idx + 101}.png"), imrotatedRight)
-    cv2.imwrite(os.path.join(imagePath, f"image_{idx + 201}.png"), imrotatedLeft)
-    cv2.imwrite(os.path.join(imagePath, f"image_{idx + 301}.png"), imflippedHorizontal)
-    cv2.imwrite(os.path.join(imagePath, f"image_{idx + 401}.png"), imdistortedImage)
+    cv2.imwrite(os.path.join(imagePath, f"image_{idx + filesNumber + 1}.png"), imrotatedRight)
+    cv2.imwrite(os.path.join(imagePath, f"image_{idx + filesNumber * 2 + 1}.png"), imrotatedLeft)
+    cv2.imwrite(os.path.join(imagePath, f"image_{idx + filesNumber * 3 + 1}.png"), imflippedHorizontal)
+    cv2.imwrite(os.path.join(imagePath, f"image_{idx + filesNumber * 4 + 1}.png"), imdistortedImage)
 
-    cv2.imwrite(os.path.join(maskPath, f"image_{idx + 101}.png"), msrotatedRight)
-    cv2.imwrite(os.path.join(maskPath, f"image_{idx + 201}.png"), msrotatedLeft)
-    cv2.imwrite(os.path.join(maskPath, f"image_{idx + 301}.png"), msflippedHorizontal)
-    cv2.imwrite(os.path.join(maskPath, f"image_{idx + 401}.png"), msdistortedImage)
+    cv2.imwrite(os.path.join(maskPath, f"image_{idx + filesNumber + 1}.png"), msrotatedRight)
+    cv2.imwrite(os.path.join(maskPath, f"image_{idx + filesNumber * 2 + 1}.png"), msrotatedLeft)
+    cv2.imwrite(os.path.join(maskPath, f"image_{idx + filesNumber * 3 + 1}.png"), msflippedHorizontal)
+    cv2.imwrite(os.path.join(maskPath, f"image_{idx + filesNumber * 4 + 1}.png"), msdistortedImage)
 
 print("Additional images generated successfully!")
