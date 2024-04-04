@@ -2,7 +2,7 @@
 name = "glaciallake"
 version = "0.1.0"
 description = ""
-authors = ["javaclll <yugu.upadhyaya@gmail.com>"]
+authors = ["javaclll <yugu.upadhyaya@gmail.com>", "waterlulu12 <aatishshrestha123@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -15,6 +15,8 @@ geemap = "^0.32.0"
 mss = "^9.0.1"
 ee = "0.2"
 tensorflow = "^2.16.1"
+torch = "^2.2.2"
+pygithub = "^2.3.0"
 
 
 [tool.poetry.group.dev.dependencies]
