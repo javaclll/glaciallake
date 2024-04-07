@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 import sys
+import torchmetrics
 
 class CustomDataset(Dataset):
     def __init__(self, imagesDirectory, masksDirectory, transform=None, transformImages=None, transformMasks=None):
@@ -38,7 +39,6 @@ class CustomDataset(Dataset):
 
             if self.transformMasks:
                 mask = self.transformMasks(mask)
-
 
         return image, mask
 
@@ -88,19 +88,19 @@ class UNet(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.encoderOne = EncoderBlock(3, 64)
-        self.encoderTwo = EncoderBlock(64, 128)
-        self.encoderThree = EncoderBlock(128, 256)
-        self.encoderFour = EncoderBlock(256, 512)
+        self.encoderOne = EncoderBlock(3, 32)
+        self.encoderTwo = EncoderBlock(32, 64)
+        self.encoderThree = EncoderBlock(64, 128)
+        self.encoderFour = EncoderBlock(128, 256)
 
-        self.bottleNeck = ConvolutionBlock(512, 1024)
+        self.bottleNeck = ConvolutionBlock(256, 512)
 
-        self.decoderOne = DecoderBlock(1024, 512)
-        self.decoderTwo = DecoderBlock(512, 256)
-        self.decoderThree = DecoderBlock(256, 128)
-        self.decoderFour = DecoderBlock(128, 64)
+        self.decoderOne = DecoderBlock(512, 256)
+        self.decoderTwo = DecoderBlock(256, 128)
+        self.decoderThree = DecoderBlock(128, 64)
+        self.decoderFour = DecoderBlock(64, 32)
 
-        self.outputs = nn.Conv2d(64, 3, kernel_size=1, padding=0)
+        self.outputs = nn.Conv2d(32, 3, kernel_size=1, padding=0)
 
     def forward(self, inputs):
 
@@ -128,7 +128,6 @@ class UNet(nn.Module):
 imagesDirectory = './images'
 masksDirectory = './masks'
 
-
 class Resize(object):
     def __init__(self, maxsize = 1500):
         assert isinstance(maxsize, int)
@@ -138,33 +137,18 @@ class Resize(object):
         data = np.array(data)
         height, width, _ = data.shape
         scale = (max(height, width) // self.maxsize) + 1
-        target_height, target_width = height // scale, width // scale
+        targetHeight, targetWidth = height // scale, width // scale
         data = torch.permute(torch.tensor(data), (2, 0, 1))
     
         if scale != 1:
             data = data.float()
-            data = torch.nn.functional.interpolate(data, size=(target_height, target_width), mode='nearest')
+            data = torch.nn.functional.interpolate(data, size=(targetHeight, targetWidth), mode='nearest')
 
         return data
-    
-class ScaleImages(object):
-    def __init__(self, threshold=128):
-        assert isinstance(threshold, int)
-        self.threshold = threshold
 
+class Scale(object):
     def __call__(self, data):
         data = data.float() / 255.0
-        return data
-
-class ScaleMasks(object):
-    def __init__(self, threshold=128):
-        assert isinstance(threshold, int)
-        self.threshold = threshold
-
-    def __call__(self, data):
-        data = np.array(data)
-        data = ((data > self.threshold) * 1).astype(np.float32)
-        data = torch.tensor(data)
         return data
 
 
@@ -208,31 +192,30 @@ class PaddingMasks(object):
         padBottom = targetHeight - height - padTop
         padLeft = (targetWidth - width) // 2
         padRight = targetWidth - width - padLeft
-
         data = torch.tensor(data)
         data = torch.nn.functional.pad(data.unsqueeze(0).float(), (padLeft, padRight, padTop, padBottom), value=0).squeeze(0).byte()
         return data
     
 transformImages = transforms.Compose([
     Resize(1500),
-    ScaleMasks(128),
+    Scale(),
     PaddingImages(16,0),
 ])
 
 transformMasks = transforms.Compose([
     Resize(1500),
-    ScaleMasks(128),
+    Scale(),
     PaddingMasks(16,0),
 ])
 
-train_size = 0.8
-val_size = 0.1
-test_size = 0.1
+trainSize = 0.8
+valSize = 0.1
+testSize = 0.1
 
 dataset = CustomDataset(imagesDirectory, masksDirectory, transformImages=transformImages, transformMasks=transformMasks)
 
-trainDataset, tvDataset = train_test_split(dataset, test_size=1-train_size, random_state=42)
-testDataset, valDataset = train_test_split(tvDataset, test_size=val_size / (val_size + test_size), random_state=42)
+trainDataset, tvDataset = train_test_split(dataset, test_size=1-trainSize, random_state=42)
+testDataset, valDataset = train_test_split(tvDataset, test_size=valSize / (valSize + testSize), random_state=42)
 
 trainLoader = DataLoader(trainDataset, batch_size=5, shuffle=True)
 validationLoader = DataLoader(valDataset, batch_size=1, shuffle=True)
@@ -263,7 +246,6 @@ def train(epochs):
                 optimizer.step()
 
                 trainLoss += loss.item() * images.size(0)
-                tepoch.set_postfix(loss=loss.item())
 
         # Validation phase
         model.eval()
@@ -288,7 +270,7 @@ def train(epochs):
 
 
 def loadandtest():
-    filePath = './modelweights/torchmodeltransforms5.pth'
+    filePath = './modelweights/torchmodeltransforms10.pth'
     model.load_state_dict(torch.load(filePath))
     model.eval()
     n_examples = 2
@@ -300,26 +282,40 @@ def loadandtest():
         
         with torch.no_grad():
             outputs = model(images)
-            outputs = torch.where(outputs > 0.45, 255, 0)  # Assuming it's a segmentation model
+            outputs = torch.where(outputs > 0.5, 255, 0)  # Assuming it's a segmentation model
             
         for i in range(images.size(0)):
-            ax[0].set_title('Original image')
+            ax[0].set_title('Glacial Lake Image')
             ax[0].imshow(np.transpose(images[i].cpu().numpy(), (1, 2, 0)))
+
+            ax[1].set_title('Glacial Lake Mask')
+            ax[1].imshow(np.transpose(masks[i].cpu().numpy(), (1, 2, 0)) * 255)
             
-            ax[1].set_title('Original mask')
-            ax[1].imshow(np.transpose(masks[i].cpu().numpy(), (1,2,0)), cmap='gray')
-            
-            ax[2].set_title('Predicted mask')
-            ax[2].imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)), cmap='gray')
+            ax[2].set_title('UNet Predicted Lake mask')
+            ax[2].imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
         
     plt.show()
+
+
+def calculateIOU():
+
+    jaccardIndex = torchmetrics.JaccardIndex(task="multiclass", num_classes=2)
+
+    for image, mask in testDataset:
+        prediction = model(image.unsqueeze(0))[0]
+        prediction = (prediction > 0.5).int()
+        jaccardIndex.update(prediction.unsqueeze(0), mask.unsqueeze(0))
+
+    meanJI = jaccardIndex.compute()
+    print("Mean Jaccard Distance for Test Data is ", meanJI.item())
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
         if sys.argv[1] == 'train':
-            train(5)
+            train(10)
         elif sys.argv[1] == 'test':
             loadandtest()
+            calculateIOU()
         else:
             print("Usage: python model.py train/test")
     else:
