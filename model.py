@@ -247,7 +247,6 @@ def train(epochs):
 
                 trainLoss += loss.item() * images.size(0)
 
-        # Validation phase
         model.eval()
         valLoss = 0.0
         with torch.no_grad():
@@ -258,13 +257,11 @@ def train(epochs):
                 loss_val = criterion(outputs_val, masksVal)
                 valLoss += loss_val.item() * imagesVal.size(0)
 
-        # Calculate average losses
         trainLoss /= len(trainDataset)
         valLoss /= len(valDataset)
 
         print(f"Epoch {epoch}/{epochs}, Train Loss: {trainLoss:.4f}, Val Loss: {valLoss:.4f}")
 
-        # Save the model after each epoch
         filePath = f'./modelweights/torchmodeltransforms{epoch}.pth'
         torch.save(model.state_dict(), filePath)
 
@@ -282,7 +279,7 @@ def loadandtest():
         
         with torch.no_grad():
             outputs = model(images)
-            outputs = torch.where(outputs > 0.5, 255, 0)  # Assuming it's a segmentation model
+            outputs = torch.where(outputs > 0.5, 255, 0)
             
         for i in range(images.size(0)):
             ax[0].set_title('Glacial Lake Image')
