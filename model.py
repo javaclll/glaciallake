@@ -7,29 +7,38 @@ from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from sklearn.model_selection import train_test_split
 import sys
 
 class CustomDataset(Dataset):
-    def __init__(self, imagesDirectory, masksDirectory, transform=None):
+    def __init__(self, imagesDirectory, masksDirectory, transform=None, transformImages=None, transformMasks=None):
         self.imagesDirectory = imagesDirectory
         self.masksDirectory = masksDirectory
+        self.transformImages = transformImages
         self.transform = transform
+        self.transformMasks = transformMasks
         self.imagesPath = [os.path.join(imagesDirectory, filename) for filename in os.listdir(imagesDirectory)]
-
-        print(os.listdir(imagesDirectory))
 
     def __len__(self):
         return len(self.imagesPath)
 
     def __getitem__(self, idx):
+
         imageName = self.imagesPath[idx]
+
         image = Image.open(imageName)
         maskName = os.path.join(self.masksDirectory, os.path.basename(imageName))
         mask = Image.open(maskName)
-
         if self.transform:
             image = self.transform(image)
             mask = self.transform(mask)
+        else:
+            if self.transformImages:
+                image = self.transformImages(image)
+
+            if self.transformMasks:
+                mask = self.transformMasks(mask)
+
 
         return image, mask
 
@@ -119,13 +128,115 @@ class UNet(nn.Module):
 imagesDirectory = './images'
 masksDirectory = './masks'
 
-transform = transforms.Compose([
-    transforms.Resize((256, 256)),
-    transforms.ToTensor()
+
+class Resize(object):
+    def __init__(self, maxsize = 1500):
+        assert isinstance(maxsize, int)
+        self.maxsize = maxsize
+
+    def __call__(self, data):
+        data = np.array(data)
+        height, width, _ = data.shape
+        scale = (max(height, width) // self.maxsize) + 1
+        target_height, target_width = height // scale, width // scale
+        data = torch.permute(torch.tensor(data), (2, 0, 1))
+    
+        if scale != 1:
+            data = data.float()
+            data = torch.nn.functional.interpolate(data, size=(target_height, target_width), mode='nearest')
+
+        return data
+    
+class ScaleImages(object):
+    def __init__(self, threshold=128):
+        assert isinstance(threshold, int)
+        self.threshold = threshold
+
+    def __call__(self, data):
+        data = data.float() / 255.0
+        return data
+
+class ScaleMasks(object):
+    def __init__(self, threshold=128):
+        assert isinstance(threshold, int)
+        self.threshold = threshold
+
+    def __call__(self, data):
+        data = np.array(data)
+        data = ((data > self.threshold) * 1).astype(np.float32)
+        data = torch.tensor(data)
+        return data
+
+
+class PaddingImages(object):
+    def __init__(self, padMultiplier=16, offset=0):
+        assert isinstance(padMultiplier, int)
+        assert isinstance(offset, int)
+
+        self.padMultiplier = padMultiplier
+        self.offset = offset
+
+    def __call__(self, data):
+        data = np.array(data)
+        _, height, width = data.shape
+        targetHeight = height + (-height) % self.padMultiplier
+        targetWidth = width + (-width) % self.padMultiplier
+        padTop = (targetHeight - height) // 2
+        padBottom = targetHeight - height - padTop
+        padLeft = (targetWidth - width) // 2
+        padRight = targetWidth - width - padLeft
+        data = torch.tensor(data)
+
+        data = torch.nn.functional.pad(data, (padLeft, padRight, padTop, padBottom))
+
+        return data
+    
+class PaddingMasks(object):
+    def __init__(self, padMultiplier=16, offset=0):
+        assert isinstance(padMultiplier, int)
+        assert isinstance(offset, int)
+
+        self.padMultiplier = padMultiplier
+        self.offset = offset
+
+    def __call__(self, data):
+        data = np.array(data)
+        height, width = data.shape[-2:]
+        targetHeight = height + (-height) % self.padMultiplier
+        targetWidth = width + (-width) % self.padMultiplier
+        padTop = (targetHeight - height) // 2
+        padBottom = targetHeight - height - padTop
+        padLeft = (targetWidth - width) // 2
+        padRight = targetWidth - width - padLeft
+
+        data = torch.tensor(data)
+        data = torch.nn.functional.pad(data.unsqueeze(0).float(), (padLeft, padRight, padTop, padBottom), value=0).squeeze(0).byte()
+        return data
+    
+transformImages = transforms.Compose([
+    Resize(1500),
+    ScaleMasks(128),
+    PaddingImages(16,0),
 ])
 
-dataset = CustomDataset(imagesDirectory, masksDirectory, transform=transform)
-train_loader = DataLoader(dataset, batch_size=5, shuffle=True)
+transformMasks = transforms.Compose([
+    Resize(1500),
+    ScaleMasks(128),
+    PaddingMasks(16,0),
+])
+
+train_size = 0.8
+val_size = 0.1
+test_size = 0.1
+
+dataset = CustomDataset(imagesDirectory, masksDirectory, transformImages=transformImages, transformMasks=transformMasks)
+
+trainDataset, tvDataset = train_test_split(dataset, test_size=1-train_size, random_state=42)
+testDataset, valDataset = train_test_split(tvDataset, test_size=val_size / (val_size + test_size), random_state=42)
+
+trainLoader = DataLoader(trainDataset, batch_size=5, shuffle=True)
+validationLoader = DataLoader(valDataset, batch_size=1, shuffle=True)
+testLoader = DataLoader(testDataset, batch_size=1, shuffle=True)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -133,38 +244,57 @@ model = UNet().to(device)
 criterion = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters())
 
-def train(epoch):
-    model.train()
-    for epoch in range(1, epoch + 1):
-        with tqdm(train_loader, unit="batch") as tepoch:
+def train(epochs):
+    for epoch in range(1, epochs + 1):
+        model.train()
+        trainLoss = 0.0
+        with tqdm(trainLoader, unit="batch") as tepoch:
             for images, masks in tepoch:
                 tepoch.set_description(f"Epoch {epoch}")
                 images, masks = images.to(device), masks.to(device)
+                masks = masks.float()
 
                 optimizer.zero_grad()
 
                 outputs = model(images)
+
                 loss = criterion(outputs, masks)
                 loss.backward()
                 optimizer.step()
 
+                trainLoss += loss.item() * images.size(0)
                 tepoch.set_postfix(loss=loss.item())
 
-    filePath = './modelweights/torchmodel.pth'
-    torch.save(model.state_dict(), filePath)
+        # Validation phase
+        model.eval()
+        valLoss = 0.0
+        with torch.no_grad():
+            for imagesVal, masksVal in validationLoader:
+                imagesVal, masksVal = imagesVal.to(device), masksVal.to(device)
+                masksVal = masksVal.float()
+                outputs_val = model(imagesVal)
+                loss_val = criterion(outputs_val, masksVal)
+                valLoss += loss_val.item() * imagesVal.size(0)
+
+        # Calculate average losses
+        trainLoss /= len(trainDataset)
+        valLoss /= len(valDataset)
+
+        print(f"Epoch {epoch}/{epochs}, Train Loss: {trainLoss:.4f}, Val Loss: {valLoss:.4f}")
+
+        # Save the model after each epoch
+        filePath = f'./modelweights/torchmodeltransforms{epoch}.pth'
+        torch.save(model.state_dict(), filePath)
+
 
 def loadandtest():
-    filePath = './modelweights/torchmodel.pth'
+    filePath = './modelweights/torchmodeltransforms5.pth'
     model.load_state_dict(torch.load(filePath))
     model.eval()
-
-    test_dataset = CustomDataset(imagesDirectory, masksDirectory, transform)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
-
     n_examples = 2
 
     fig, axs = plt.subplots(n_examples, 3, figsize=(14, n_examples*7), constrained_layout=True)
-    for ax, ele in zip(axs, test_loader):
+    for ax, ele in zip(axs, testLoader):
         images, masks = ele
         images, masks = images.to(device), masks.to(device)
         
@@ -184,12 +314,10 @@ def loadandtest():
         
     plt.show()
 
-    
-
 if __name__ == '__main__':
     if len(sys.argv) == 2:
         if sys.argv[1] == 'train':
-            train(6)
+            train(5)
         elif sys.argv[1] == 'test':
             loadandtest()
         else:
