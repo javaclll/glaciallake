@@ -317,6 +317,12 @@ def loadandtest():
                     centroidX = centroidX / area
                     centroidY = centroidY / area
 
+            #TODO: Scale the centroidX and centroidY to the original image size, and then add it to the centeral cooridnates of the original image
+            # centroidX = centroidX * scale[i][0] + center[i][0]
+            # centroidY = centroidY * scale[i][1] + center[i][1]
+
+            #TODO: Scale the area to the original image size
+            # maskArea = maskArea * scale[i][0] * scale[i][1]
             
             print("Centroid and Area for the Mask are ", centroidX, centroidY, maskArea)
 
