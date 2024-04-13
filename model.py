@@ -10,6 +10,7 @@ from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 import sys
 import torchmetrics
+import cv2
 
 class CustomDataset(Dataset):
     def __init__(self, imagesDirectory, masksDirectory, transform=None, transformImages=None, transformMasks=None):
@@ -290,8 +291,37 @@ def loadandtest():
             
             ax[2].set_title('UNet Predicted Lake mask')
             ax[2].imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
-        
+
+            grayMask = cv2.cvtColor(np.transpose(masks[i].cpu().numpy(), (1, 2, 0)), cv2.COLOR_BGR2GRAY)
+
+            contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            maskArea = 0
+            centroidX = 0
+            centroidY = 0
+
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                maskArea += area
+
+                centroid = cv2.moments(contour)
+
+                if centroid["m00"] != 0:
+                    cX = int(centroid["m10"] / centroid["m00"])
+                    cY = int(centroid["m01"] / centroid["m00"])
+
+                    centroidX += cX * area
+                    centroidY += cY * area
+                
+                if area > 0:
+                    centroidX = centroidX / area
+                    centroidY = centroidY / area
+
+            
+            print("Centroid and Area for the Mask are ", centroidX, centroidY, maskArea)
+
     plt.show()
+
 
 
 def calculateIOU():
