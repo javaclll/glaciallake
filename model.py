@@ -267,7 +267,7 @@ def train(epochs):
         model.eval()
         valLoss = 0.0
         with torch.no_grad():
-            for imagesVal, masksVal in validationLoader:
+            for imagesVal, masksVal, _ in validationLoader:
                 imagesVal, masksVal = imagesVal.to(device), masksVal.to(device)
                 masksVal = masksVal.float()
                 outputs_val = model(imagesVal)
@@ -285,7 +285,6 @@ def train(epochs):
 csvPath = "./glacialscales.csv"
 
 def getScale(index):
-    print("Index is ", index)
     if index < 400:
         index = index % 100
         with open(csvPath, 'r') as file:
@@ -294,9 +293,7 @@ def getScale(index):
             
             for row in reader:
                 counter += 1
-                print(counter)
                 if counter == index:
-                    print("Found")
                     return float(row['Scale'])
     else:
         index = index % 100
@@ -312,7 +309,7 @@ def getScale(index):
 
 
 def loadandtest():
-    filePath = './modelweights/torchmodeltransforms10.pth'
+    filePath = './modelweights/torchmodelcentroid10.pth'
     model.load_state_dict(torch.load(filePath))
     model.eval()
     n_examples = 2
@@ -335,15 +332,11 @@ def loadandtest():
             
             ax[2].set_title('UNet Predicted Lake mask')
             ax[2].imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
-            print("Image Shape is ", np.transpose(images[i].cpu().numpy(), (1, 2, 0)).shape)
-            print("Mask Shape is ", np.transpose(masks[i].cpu().numpy(), (1, 2, 0)).shape)
-            print("Output Shape is ", np.transpose(outputs[i].cpu().numpy(), (1, 2, 0)).shape)
 
             grayMask = cv2.cvtColor(np.float32(np.transpose(outputs[i].cpu().numpy(), (1, 2, 0))), cv2.COLOR_BGR2GRAY)
             grayMask = np.uint8(grayMask)
             contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             scale = getScale(int(idx))
-            print("Scale is ", scale)
 
             maskArea = 0
             centroidX = 0
@@ -441,7 +434,7 @@ def checkImages():
 def calculateIOU():
     jaccardIndex = torchmetrics.JaccardIndex(task="multiclass", num_classes=2)
 
-    for image, mask in testDataset:
+    for image, mask, _ in testDataset:
         prediction = model(image.unsqueeze(0))[0]
         prediction = (prediction > 0.5).int()
         jaccardIndex.update(prediction.unsqueeze(0), mask.unsqueeze(0))
