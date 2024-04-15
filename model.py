@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 import sys
 import torchmetrics
 import cv2
+import csv
 
 class CustomDataset(Dataset):
     def __init__(self, imagesDirectory, masksDirectory, transform=None, transformImages=None, transformMasks=None):
@@ -41,7 +42,23 @@ class CustomDataset(Dataset):
             if self.transformMasks:
                 mask = self.transformMasks(mask)
 
-        return image, mask
+        return image, mask, idx
+
+class CustomTestDataSet(Dataset):
+    def __init__(self, testDirectory, transformImages=None):
+        self.testDirectory = testDirectory
+        self.transformImages = transformImages
+        self.testImagesPath = [os.path.join(testDirectory, filename) for filename in os.listdir(testDirectory)]
+
+    def __len__(self):
+        return len(self.testImagesPath)
+    
+    def __getitem__(self, idx):
+        imageName = self.testImagesPath[idx]
+        image = Image.open(imageName)
+        if self.transformImages:
+            image = self.transformImages(image)
+        return image
 
 class ConvolutionBlock(nn.Module):
     def __init__(self, inC, outC):
@@ -125,9 +142,10 @@ class UNet(nn.Module):
         outputs = torch.sigmoid(outputs)
 
         return outputs
-    
+
 imagesDirectory = './images'
 masksDirectory = './masks'
+testDirectory = "./checks"
 
 class Resize(object):
     def __init__(self, maxsize = 1500):
@@ -140,18 +158,16 @@ class Resize(object):
         scale = (max(height, width) // self.maxsize) + 1
         targetHeight, targetWidth = height // scale, width // scale
         data = torch.permute(torch.tensor(data), (2, 0, 1))
-    
+
         if scale != 1:
             data = data.float()
             data = torch.nn.functional.interpolate(data, size=(targetHeight, targetWidth), mode='nearest')
-
         return data
 
 class Scale(object):
     def __call__(self, data):
         data = data.float() / 255.0
         return data
-
 
 class PaddingImages(object):
     def __init__(self, padMultiplier=16, offset=0):
@@ -175,7 +191,7 @@ class PaddingImages(object):
         data = torch.nn.functional.pad(data, (padLeft, padRight, padTop, padBottom))
 
         return data
-    
+
 class PaddingMasks(object):
     def __init__(self, padMultiplier=16, offset=0):
         assert isinstance(padMultiplier, int)
@@ -233,7 +249,7 @@ def train(epochs):
         model.train()
         trainLoss = 0.0
         with tqdm(trainLoader, unit="batch") as tepoch:
-            for images, masks in tepoch:
+            for images, masks, _ in tepoch:
                 tepoch.set_description(f"Epoch {epoch}")
                 images, masks = images.to(device), masks.to(device)
                 masks = masks.float()
@@ -263,8 +279,36 @@ def train(epochs):
 
         print(f"Epoch {epoch}/{epochs}, Train Loss: {trainLoss:.4f}, Val Loss: {valLoss:.4f}")
 
-        filePath = f'./modelweights/torchmodeltransforms{epoch}.pth'
+        filePath = f'./modelweights/torchmodelcentroid{epoch}.pth'
         torch.save(model.state_dict(), filePath)
+
+csvPath = "./glacialscales.csv"
+
+def getScale(index):
+    print("Index is ", index)
+    if index < 400:
+        index = index % 100
+        with open(csvPath, 'r') as file:
+            reader = csv.DictReader(file)
+            counter = 0
+            
+            for row in reader:
+                counter += 1
+                print(counter)
+                if counter == index:
+                    print("Found")
+                    return float(row['Scale'])
+    else:
+        index = index % 100
+        with open(csvPath, 'r') as file:
+            reader = csv.DictReader(file)
+            counter = 0
+            
+            for row in reader:
+                counter += 1
+                if counter == index:
+                    return float(row['Scale']) * 0.84
+
 
 
 def loadandtest():
@@ -275,7 +319,7 @@ def loadandtest():
 
     fig, axs = plt.subplots(n_examples, 3, figsize=(14, n_examples*7), constrained_layout=True)
     for ax, ele in zip(axs, testLoader):
-        images, masks = ele
+        images, masks, idx = ele
         images, masks = images.to(device), masks.to(device)
         
         with torch.no_grad():
@@ -291,10 +335,76 @@ def loadandtest():
             
             ax[2].set_title('UNet Predicted Lake mask')
             ax[2].imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
+            print("Image Shape is ", np.transpose(images[i].cpu().numpy(), (1, 2, 0)).shape)
+            print("Mask Shape is ", np.transpose(masks[i].cpu().numpy(), (1, 2, 0)).shape)
+            print("Output Shape is ", np.transpose(outputs[i].cpu().numpy(), (1, 2, 0)).shape)
 
-            grayMask = cv2.cvtColor(np.transpose(masks[i].cpu().numpy(), (1, 2, 0)), cv2.COLOR_BGR2GRAY)
-
+            grayMask = cv2.cvtColor(np.float32(np.transpose(outputs[i].cpu().numpy(), (1, 2, 0))), cv2.COLOR_BGR2GRAY)
+            grayMask = np.uint8(grayMask)
             contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            scale = getScale(int(idx))
+            print("Scale is ", scale)
+
+            maskArea = 0
+            centroidX = 0
+            centroidY = 0
+
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                maskArea += area
+
+                centroid = cv2.moments(contour)
+
+                if centroid["m00"] != 0:
+                    cX = int(centroid["m10"] / centroid["m00"])
+                    cY = int(centroid["m01"] / centroid["m00"])
+
+                    centroidX += cX * area
+                    centroidY += cY * area
+                
+                if area > 0:
+                    centroidX = centroidX / area
+                    centroidY = centroidY / area
+
+            # TODO: Scale the centroidX and centroidY to the original image size, and then add it to the centeral cooridnates of the original image
+            centroidX = centroidX 
+            centroidY = centroidY
+
+            #TODO: Scale the area to the original image size
+            maskArea = maskArea * scale * scale
+    
+            print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
+ 
+
+    plt.show()
+
+def checkImages():
+    checkdataset = CustomTestDataSet(testDirectory, transformImages=transformImages)
+    checkLoader = DataLoader(checkdataset, batch_size=1, shuffle=True)
+    filePath = './modelweights/torchmodeltransforms10.pth'
+    model.load_state_dict(torch.load(filePath))
+    model.eval()
+    n_examples = 2
+
+    fig, axs = plt.subplots(n_examples, 2, figsize=(14, n_examples*7), constrained_layout=True)
+    for ax, images in zip(axs, checkLoader):
+        images = images.to(device)
+        
+        with torch.no_grad():
+            outputs = model(images)
+            outputs = torch.where(outputs > 0.5, 255, 0)
+            
+        for i in range(images.size(0)):
+            ax[0].set_title('Glacial Lake Image')
+            ax[0].imshow(np.transpose(images[i].cpu().numpy(), (1, 2, 0)))
+            
+            ax[1].set_title('UNet Predicted Lake mask')
+            ax[1].imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
+            
+            grayMask = cv2.cvtColor(np.float32(np.transpose(outputs[i].cpu().numpy(), (1, 2, 0))), cv2.COLOR_BGR2GRAY)
+            grayMask = np.uint8(grayMask)
+            contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
             
             maskArea = 0
             centroidX = 0
@@ -324,14 +434,11 @@ def loadandtest():
             #TODO: Scale the area to the original image size
             # maskArea = maskArea * scale[i][0] * scale[i][1]
             
-            print("Centroid and Area for the Mask are ", centroidX, centroidY, maskArea)
+            print("Centroid and Area for the Mask are ", centroidX, centroidY, maskArea) 
 
     plt.show()
-
-
-
+    
 def calculateIOU():
-
     jaccardIndex = torchmetrics.JaccardIndex(task="multiclass", num_classes=2)
 
     for image, mask in testDataset:
@@ -349,6 +456,8 @@ if __name__ == '__main__':
         elif sys.argv[1] == 'test':
             loadandtest()
             calculateIOU()
+        elif sys.argv[1] == 'check':
+            checkImages()
         else:
             print("Usage: python model.py train/test")
     else:
