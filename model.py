@@ -244,8 +244,15 @@ model = UNet().to(device)
 criterion = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters())
 
-def train(epochs):
-    for epoch in range(1, epochs + 1):
+def train(epochs, newTrain=(True, 0)):
+    epochstart = 0
+
+    if not newTrain[0]:
+        filePath = f'./modelweights/torchmodelcentroid{newTrain[1]}.pth'
+        model.load_state_dict(torch.load(filePath))
+        epochstart = newTrain[1]
+
+    for epoch in range(epochstart + 1, epochs + epochstart + 1):
         model.train()
         trainLoss = 0.0
         with tqdm(trainLoader, unit="batch") as tepoch:
@@ -335,6 +342,8 @@ def loadandtest():
 
             grayMask = cv2.cvtColor(np.float32(np.transpose(outputs[i].cpu().numpy(), (1, 2, 0))), cv2.COLOR_BGR2GRAY)
             grayMask = np.uint8(grayMask)
+            calcArea, calcCentX, calcCentY = calcAreaandCentroid(grayMask)
+
             contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             scale = getScale(int(idx))
 
@@ -364,20 +373,29 @@ def loadandtest():
             centroidY = centroidY
 
             #TODO: Scale the area to the original image size
-            maskArea = maskArea * scale * scale
+            # maskArea = maskArea * scale * scale
+            # calcArea = calcArea * scale * scale
     
             print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
+            print(f"Calculated Centroid and Area for the Mask are {calcCentX:.2f}, {calcCentY:.2f}, {calcArea:.2f}")
  
 
     plt.show()
 
+def calcAreaandCentroid(mask):
+    area = np.sum(mask/255)
+    yC, xC = np.mgrid[:mask.shape[0], :mask.shape[1]]
+    centroidX = np.sum(xC * mask) / (area * 255)
+    centroidY = np.sum(yC * mask) / (area * 255)
+    return area, centroidX, centroidY
+
 def checkImages():
     checkdataset = CustomTestDataSet(testDirectory, transformImages=transformImages)
     checkLoader = DataLoader(checkdataset, batch_size=1, shuffle=True)
-    filePath = './modelweights/torchmodeltransforms10.pth'
+    filePath = './modelweights/torchmodelcentroid10.pth'
     model.load_state_dict(torch.load(filePath))
     model.eval()
-    n_examples = 2
+    n_examples = 3
 
     fig, axs = plt.subplots(n_examples, 2, figsize=(14, n_examples*7), constrained_layout=True)
     for ax, images in zip(axs, checkLoader):
@@ -396,9 +414,11 @@ def checkImages():
             
             grayMask = cv2.cvtColor(np.float32(np.transpose(outputs[i].cpu().numpy(), (1, 2, 0))), cv2.COLOR_BGR2GRAY)
             grayMask = np.uint8(grayMask)
-            contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            calcArea, calcCentX, calcCentY = calcAreaandCentroid(grayMask)
 
-            
+            contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            scale = 4.221832295
+
             maskArea = 0
             centroidX = 0
             centroidY = 0
@@ -420,14 +440,16 @@ def checkImages():
                     centroidX = centroidX / area
                     centroidY = centroidY / area
 
-            #TODO: Scale the centroidX and centroidY to the original image size, and then add it to the centeral cooridnates of the original image
-            # centroidX = centroidX * scale[i][0] + center[i][0]
-            # centroidY = centroidY * scale[i][1] + center[i][1]
+            # TODO: Scale the centroidX and centroidY to the original image size, and then add it to the centeral cooridnates of the original image
+            centroidX = centroidX 
+            centroidY = centroidY
 
             #TODO: Scale the area to the original image size
-            # maskArea = maskArea * scale[i][0] * scale[i][1]
-            
-            print("Centroid and Area for the Mask are ", centroidX, centroidY, maskArea) 
+            maskArea = maskArea * scale * scale
+            calcArea = calcArea * scale * scale
+    
+            print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
+            print(f"Calculated Centroid and Area for the Mask are {calcCentX:.2f}, {calcCentY:.2f}, {calcArea:.2f}")
 
     plt.show()
     
@@ -451,6 +473,11 @@ if __name__ == '__main__':
             calculateIOU()
         elif sys.argv[1] == 'check':
             checkImages()
+        else:
+            print("Usage: python model.py train/test")
+    elif len(sys.argv) == 3:
+        if sys.argv[1] == 'append':
+            train(10, (False, int(sys.argv[2])))
         else:
             print("Usage: python model.py train/test")
     else:
