@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 import sys
-import torchmetrics
 import cv2
 import csv
+from metrics import calculateIOU, calculateMetrics, calcAreaandCentroid
 
 class CustomDataset(Dataset):
     def __init__(self, imagesDirectory, masksDirectory, transform=None, transformImages=None, transformMasks=None):
@@ -313,15 +313,18 @@ def getScale(index):
                 if counter == index:
                     return float(row['Scale']) * 0.84
 
-
-
 def loadandtest():
-    filePath = './modelweights/torchmodelcentroid10.pth'
+    filePath = './modelweights/torchmodelcentroid36.pth'
     model.load_state_dict(torch.load(filePath))
     model.eval()
-    n_examples = 2
 
-    fig, axs = plt.subplots(n_examples, 3, figsize=(14, n_examples*7), constrained_layout=True)
+    calculateIOU(testDataset, model)
+    calculateMetrics(testDataset, model)
+
+    nexamples = 2
+
+    print(f"Visualizing the Images and the Predicted Masks for {nexamples} Test Data.")
+    fig, axs = plt.subplots(nexamples, 3, figsize=(14, nexamples*7), constrained_layout=True)
     for ax, ele in zip(axs, testLoader):
         images, masks, idx = ele
         images, masks = images.to(device), masks.to(device)
@@ -373,8 +376,8 @@ def loadandtest():
             centroidY = centroidY
 
             #TODO: Scale the area to the original image size
-            # maskArea = maskArea * scale * scale
-            # calcArea = calcArea * scale * scale
+            maskArea = maskArea * scale * scale
+            calcArea = calcArea * scale * scale
     
             print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
             print(f"Calculated Centroid and Area for the Mask are {calcCentX:.2f}, {calcCentY:.2f}, {calcArea:.2f}")
@@ -382,23 +385,23 @@ def loadandtest():
 
     plt.show()
 
-def calcAreaandCentroid(mask):
-    area = np.sum(mask/255)
-    yC, xC = np.mgrid[:mask.shape[0], :mask.shape[1]]
-    centroidX = np.sum(xC * mask) / (area * 255)
-    centroidY = np.sum(yC * mask) / (area * 255)
-    return area, centroidX, centroidY
 
-def checkImages():
+def checkImages(scale = 1):
+    print(f"Scale is {scale}")
     checkdataset = CustomTestDataSet(testDirectory, transformImages=transformImages)
     checkLoader = DataLoader(checkdataset, batch_size=1, shuffle=True)
-    filePath = './modelweights/torchmodelcentroid10.pth'
+    filePath = './modelweights/torchmodelcentroid36.pth'
     model.load_state_dict(torch.load(filePath))
     model.eval()
-    n_examples = 3
+    
+    # SHow Random Tests Data
+    nexamples = 2
 
-    fig, axs = plt.subplots(n_examples, 2, figsize=(14, n_examples*7), constrained_layout=True)
-    for ax, images in zip(axs, checkLoader):
+    print(f"Visualizing the Images and the Predicted Masks for {nexamples} Test Data.")
+
+    fig, axs = plt.subplots(nexamples, 2, figsize=(14, nexamples*7), constrained_layout=True)
+    for ax, ele in zip(axs, checkLoader):
+        images = ele
         images = images.to(device)
         
         with torch.no_grad():
@@ -408,16 +411,15 @@ def checkImages():
         for i in range(images.size(0)):
             ax[0].set_title('Glacial Lake Image')
             ax[0].imshow(np.transpose(images[i].cpu().numpy(), (1, 2, 0)))
-            
+
             ax[1].set_title('UNet Predicted Lake mask')
             ax[1].imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
-            
+
             grayMask = cv2.cvtColor(np.float32(np.transpose(outputs[i].cpu().numpy(), (1, 2, 0))), cv2.COLOR_BGR2GRAY)
             grayMask = np.uint8(grayMask)
             calcArea, calcCentX, calcCentY = calcAreaandCentroid(grayMask)
 
             contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            scale = 4.221832295
 
             maskArea = 0
             centroidX = 0
@@ -450,19 +452,8 @@ def checkImages():
     
             print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
             print(f"Calculated Centroid and Area for the Mask are {calcCentX:.2f}, {calcCentY:.2f}, {calcArea:.2f}")
-
-    plt.show()
     
-def calculateIOU():
-    jaccardIndex = torchmetrics.JaccardIndex(task="multiclass", num_classes=2)
-
-    for image, mask, _ in testDataset:
-        prediction = model(image.unsqueeze(0))[0]
-        prediction = (prediction > 0.5).int()
-        jaccardIndex.update(prediction.unsqueeze(0), mask.unsqueeze(0))
-
-    meanJI = jaccardIndex.compute()
-    print("Mean Jaccard Distance for Test Data is ", meanJI.item())
+    plt.show()
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
@@ -470,15 +461,16 @@ if __name__ == '__main__':
             train(10)
         elif sys.argv[1] == 'test':
             loadandtest()
-            calculateIOU()
         elif sys.argv[1] == 'check':
-            checkImages()
+                checkImages()
         else:
-            print("Usage: python model.py train/test")
+            print("Usage: python model.py train | test | check <scale> | append <epoch>")
     elif len(sys.argv) == 3:
         if sys.argv[1] == 'append':
             train(10, (False, int(sys.argv[2])))
+        elif sys.argv[1] == 'check':
+            checkImages(int(sys.argv[2]))
         else:
-            print("Usage: python model.py train/test")
+            print("Usage: python model.py train | test | check <scale> | append <epoch>")
     else:
-        print("Usage: python model.py train/test")
+        print("Usage: python model.py train | test | check <scale> | append <epoch>")
