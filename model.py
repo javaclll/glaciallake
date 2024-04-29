@@ -2,6 +2,7 @@ import os
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
+import tensorflow
 from torchvision import transforms
 from PIL import Image
 import numpy as np
@@ -60,6 +61,23 @@ class CustomTestDataSet(Dataset):
             image = self.transformImages(image)
         return image
 
+class CustomCheckDataSet(Dataset):
+    def __init__(self, testDirectory, checkName, transformImages=None):
+        self.testDirectory = testDirectory
+        self.checkName = checkName
+        self.transformImages = transformImages
+        self.testImagePath = os.path.join(testDirectory, checkName)
+
+    def __len__(self):
+        return 1
+
+    def __getitem__(self, idx):
+        imageName = self.testImagePath
+        image = Image.open(imageName)
+        if self.transformImages:
+            image = self.transformImages(image)
+        return image
+            
 class ConvolutionBlock(nn.Module):
     def __init__(self, inC, outC):
         super().__init__()
@@ -109,16 +127,14 @@ class UNet(nn.Module):
         self.encoderOne = EncoderBlock(3, 32)
         self.encoderTwo = EncoderBlock(32, 64)
         self.encoderThree = EncoderBlock(64, 128)
-        self.encoderFour = EncoderBlock(128, 256)
 
-        self.bottleNeck = ConvolutionBlock(256, 512)
+        self.bottleNeck = ConvolutionBlock(256, 128)
 
-        self.decoderOne = DecoderBlock(512, 256)
-        self.decoderTwo = DecoderBlock(256, 128)
-        self.decoderThree = DecoderBlock(128, 64)
-        self.decoderFour = DecoderBlock(64, 32)
+        self.decoderOne = DecoderBlock(128, 64)
+        self.decoderTwo = DecoderBlock(64, 32)
+        self.decoderThree = DecoderBlock(32, 3)
 
-        self.outputs = nn.Conv2d(32, 3, kernel_size=1, padding=0)
+        self.outputs = nn.Conv2d(3, 1, kernel_size=1, padding=0)
 
     def forward(self, inputs):
 
@@ -126,26 +142,24 @@ class UNet(nn.Module):
         sConvOne, poolOne = self.encoderOne(inputs)
         sConvTwo, poolTwo = self.encoderTwo(poolOne)
         sConvThree, poolThree = self.encoderThree(poolTwo)
-        sConvFour, poolFour = self.encoderFour(poolThree)
 
         """ Bottleneck """
-        bottleNeck = self.bottleNeck(poolFour)
+        bottleNeck = self.bottleNeck(poolThree)
 
         """ Decoder """
-        decoderOne = self.decoderOne(bottleNeck, sConvFour)
-        decoderTwo = self.decoderTwo(decoderOne, sConvThree)
-        decoderThree = self.decoderThree(decoderTwo, sConvTwo)
-        decoderFour = self.decoderFour(decoderThree, sConvOne)
+        decoderOne = self.decoderOne(bottleNeck, sConvThree)
+        decoderTwo = self.decoderTwo(decoderOne, sConvTwo)
+        decoderThree = self.decoderThree(decoderTwo, sConvOne)
         
         """ Classifier """
-        outputs = self.outputs(decoderFour)
+        outputs = self.outputs(decoderThree)
         outputs = torch.sigmoid(outputs)
 
         return outputs
 
 imagesDirectory = './images'
 masksDirectory = './masks'
-testDirectory = "./checks"
+testDirectory = "./area"
 
 class Resize(object):
     def __init__(self, maxsize = 1500):
@@ -386,18 +400,47 @@ def loadandtest():
     plt.show()
 
 
-def checkImages(scale = 1):
-    print(f"Scale is {scale}")
-    checkdataset = CustomTestDataSet(testDirectory, transformImages=transformImages)
-    checkLoader = DataLoader(checkdataset, batch_size=1, shuffle=True)
-    filePath = './modelweights/torchmodelcentroid36.pth'
-    model.load_state_dict(torch.load(filePath))
-    model.eval()
-    
-    # SHow Random Tests Data
-    nexamples = 2
+def checkImages(name = None):
+    scale = 1
+    if name:
+        name += ".png"
 
-    print(f"Visualizing the Images and the Predicted Masks for {nexamples} Test Data.")
+        allScales = {
+            "chola.png": 4.221832295,
+            "digtsho.png": 4.221832295,
+            "dudhpokhari.png": 4.221832295,
+            "imja.png": 8.443075524,
+            "lumdingcho.png": 8.443075524,
+            "nupchu.png": 4.221832295,
+            "tampokharisabai.png": 4.221832295,
+            "thulagidona.png": 8.443075524,
+            "tshorolpa.png": 16.88446932,
+            "westcham.png": 8.443075524,
+        }
+
+        scale = allScales[name]
+
+        checkdataset = CustomCheckDataSet(testDirectory, name, transformImages=transformImages)
+        checkLoader = DataLoader(checkdataset, batch_size=1, shuffle=True)
+        filePath = './modelweights/torchmodelcentroid5.pth'
+        model.load_state_dict(torch.load(filePath))
+        model.eval()
+        
+        # Show the Image
+        nexamples = 1
+        
+        print(f"Visualizing the Images and the Predicted Masks for {nexamples} Test Data for {name} w/ scale {scale}.")
+    else:
+        checkdataset = CustomTestDataSet(testDirectory, transformImages=transformImages)
+        checkLoader = DataLoader(checkdataset, batch_size=1, shuffle=True)
+        filePath = './modelweights/torchmodelcentroid36.pth'
+        model.load_state_dict(torch.load(filePath))
+        model.eval()
+        
+        # SHow Random Tests Data
+        nexamples = 2
+        print(f"Visualizing the Images and the Predicted Masks for {nexamples} Test Data w/ scale {scale}.")
+
 
     fig, axs = plt.subplots(nexamples, 2, figsize=(14, nexamples*7), constrained_layout=True)
     for ax, ele in zip(axs, checkLoader):
@@ -409,11 +452,11 @@ def checkImages(scale = 1):
             outputs = torch.where(outputs > 0.5, 255, 0)
             
         for i in range(images.size(0)):
-            ax[0].set_title('Glacial Lake Image')
-            ax[0].imshow(np.transpose(images[i].cpu().numpy(), (1, 2, 0)))
+            # ax.set_title('Glacial Lake Image')
+            # ax.imshow(np.transpose(images[i].cpu().numpy(), (1, 2, 0)))
 
-            ax[1].set_title('UNet Predicted Lake mask')
-            ax[1].imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
+            ax.set_title('UNet Predicted Lake mask')
+            ax.imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
 
             grayMask = cv2.cvtColor(np.float32(np.transpose(outputs[i].cpu().numpy(), (1, 2, 0))), cv2.COLOR_BGR2GRAY)
             grayMask = np.uint8(grayMask)
@@ -449,7 +492,7 @@ def checkImages(scale = 1):
             #TODO: Scale the area to the original image size
             maskArea = maskArea * scale * scale
             calcArea = calcArea * scale * scale
-    
+            print(scale)
             print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
             print(f"Calculated Centroid and Area for the Mask are {calcCentX:.2f}, {calcCentY:.2f}, {calcArea:.2f}")
     
@@ -469,7 +512,7 @@ if __name__ == '__main__':
         if sys.argv[1] == 'append':
             train(10, (False, int(sys.argv[2])))
         elif sys.argv[1] == 'check':
-            checkImages(int(sys.argv[2]))
+            checkImages(name=sys.argv[2])
         else:
             print("Usage: python model.py train | test | check <scale> | append <epoch>")
     else:
