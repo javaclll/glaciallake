@@ -15,6 +15,7 @@ def calculateIOU(testDataset, model):
         prediction = model(image.unsqueeze(0))[0]
         prediction = (prediction > 0.5).int()
         jaccardIndex.update(prediction.unsqueeze(0), mask.unsqueeze(0))
+        print()
 
     meanJI = jaccardIndex.compute()
     print("Mean Jaccard Distance for Test Data is ", meanJI.item())
@@ -35,6 +36,7 @@ def calculateMetrics(testDataset, model):
     recallSum = 0
     f1Sum = 0
     accuracySum = 0
+    sumJI = 0
     noOfItems = len(testDataset)
     for image, mask, _ in testDataset:
         prediction = model(image.unsqueeze(0))[0]
@@ -42,6 +44,7 @@ def calculateMetrics(testDataset, model):
 
         TP,TN,FP,FN = calculateTrueAndFalses(prediction, mask) 
 
+        JI = TP/(TP+FP+FN)
         precision = TP / (TP + FP)
         recall = TP / (TP + FN)
         if precision == 0 or recall == 0:
@@ -55,6 +58,7 @@ def calculateMetrics(testDataset, model):
         recallSum += recall
         f1Sum += f1
         accuracySum += accuracy
+        sumJI += JI
 
     
-    print(f"Precision: {precisionSum/noOfItems}, Recall: {recallSum/noOfItems}, F1 Score: {f1Sum/noOfItems} & Accuracy {accuracySum/noOfItems}")
+    print(f"Precision: {precisionSum/noOfItems}, Recall: {recallSum/noOfItems}, F1 Score: {f1Sum/noOfItems} & Accuracy {accuracySum/noOfItems}, Mean JI {sumJI/noOfItems}")
