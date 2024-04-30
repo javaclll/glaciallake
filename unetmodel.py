@@ -77,98 +77,7 @@ class CustomCheckDataSet(Dataset):
         if self.transformImages:
             image = self.transformImages(image)
         return image
-            
-# class PartialConv(nn.Module):
-#     def __init__(self, in_channels, out_channels, kernel_size, activation='relu', initializer='he_normal'):
-#         super(PartialConv, self).__init__()
-#         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding='same')
-#         self.activation = nn.ReLU() if activation == 'relu' else nn.Sigmoid()
-#         nn.init.kaiming_normal_(self.conv.weight) if initializer == 'he_normal' else nn.init.xavier_normal_(self.conv.weight)
 
-#     def forward(self, x):
-#         x = self.conv(x)
-#         x = self.activation(x)
-#         return x
-
-# class UNet(nn.Module):
-#     def __init__(self, hidden_activation='relu', initializer='he_normal', output_activation='sigmoid'):
-#         super(UNet, self).__init__()
-        
-#         # Encoder
-#         self.enc_conv1 = PartialConv(3, 32, 3, activation=hidden_activation, initializer=initializer)
-#         self.enc_conv2 = PartialConv(32, 32, 3, activation=hidden_activation, initializer=initializer)
-#         self.enc_pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
-        
-#         self.enc_conv3 = PartialConv(32, 64, 3, activation=hidden_activation, initializer=initializer)
-#         self.enc_conv4 = PartialConv(64, 64, 3, activation=hidden_activation, initializer=initializer)
-#         self.enc_pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
-        
-#         self.enc_conv5 = PartialConv(64, 128, 3, activation=hidden_activation, initializer=initializer)
-#         self.enc_conv6 = PartialConv(128, 128, 3, activation=hidden_activation, initializer=initializer)
-#         self.enc_pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
-        
-#         # Center
-#         self.center_conv1 = PartialConv(128, 256, 3, activation=hidden_activation, initializer=initializer)
-#         self.center_conv2 = PartialConv(256, 256, 3, activation=hidden_activation, initializer=initializer)
-        
-#         # Decoder
-#         self.upsample1 = nn.Upsample(scale_factor=2, mode='nearest')
-#         self.dec_up_conv1 = PartialConv(256, 128, 2, activation=hidden_activation, initializer=initializer)
-#         self.dec_conv1 = PartialConv(256, 128, 3, activation=hidden_activation, initializer=initializer)
-        
-#         self.upsample2 = nn.Upsample(scale_factor=2, mode='nearest')
-#         self.dec_up_conv2 = PartialConv(128, 64, 2, activation=hidden_activation, initializer=initializer)
-#         self.dec_conv2 = PartialConv(128, 64, 3, activation=hidden_activation, initializer=initializer)
-        
-#         self.upsample3 = nn.Upsample(scale_factor=2, mode='nearest')
-#         self.dec_up_conv3 = PartialConv(64, 32, 2, activation=hidden_activation, initializer=initializer)
-#         self.dec_conv3 = PartialConv(64, 32, 3, activation=hidden_activation, initializer=initializer)
-        
-#         self.output_conv = nn.Conv2d(32, 1, kernel_size=1)
-#         self.output_activation = nn.Sigmoid() if output_activation == 'sigmoid' else nn.ReLU()
-
-#     def forward(self, x):
-#         # Encoder
-#         enc_cov_1 = self.enc_conv1(x)
-#         enc_cov_1 = self.enc_conv2(enc_cov_1)
-#         enc_pool_1 = self.enc_pool1(enc_cov_1)
-        
-#         enc_cov_2 = self.enc_conv3(enc_pool_1)
-#         enc_cov_2 = self.enc_conv4(enc_cov_2)
-#         enc_pool_2 = self.enc_pool2(enc_cov_2)
-        
-#         enc_cov_3 = self.enc_conv5(enc_pool_2)
-#         enc_cov_3 = self.enc_conv6(enc_cov_3)
-#         enc_pool_3 = self.enc_pool3(enc_cov_3)
-        
-#         # Center
-#         center_cov = self.center_conv1(enc_pool_3)
-#         center_cov = self.center_conv2(center_cov)
-        
-#         # Decoder        
-#         upsampling1 = self.upsample1(center_cov)
-#         dec_up_conv_1 = self.dec_up_conv1(upsampling1)
-#         print("enc_cov_3 size:", enc_cov_3.size())
-#         print("dec_up_conv_1 size:", dec_up_conv_1.size())
-
-#         dec_merged_1 = torch.cat((enc_cov_3, dec_up_conv_1), dim=1)
-#         dec_conv_1 = self.dec_conv1(dec_merged_1)
-#         dec_conv_1 = self.dec_conv1(dec_conv_1)
-        
-#         upsampling2 = self.upsample2(dec_conv_1)
-#         dec_up_conv_2 = self.dec_up_conv2(upsampling2)
-#         dec_merged_2 = torch.cat((enc_cov_2, dec_up_conv_2), dim=1)
-#         dec_conv_2 = self.dec_conv2(dec_merged_2)
-#         dec_conv_2 = self.dec_conv2(dec_conv_2)
-        
-#         upsampling3 = self.upsample3(dec_conv_2)
-#         dec_up_conv_3 = self.dec_up_conv3(upsampling3)
-#         dec_merged_3 = torch.cat((enc_cov_1, dec_up_conv_3), dim=1)
-#         dec_conv_3 = self.dec_conv3(dec_merged_3)
-#         dec_conv_3 = self.dec_conv3(dec_conv_3)
-        
-#         output = self.output_conv(dec_conv_3)
-#         output = self.output_activation(output)
         
 #         return output
 class ConvolutionBlock(nn.Module):
@@ -256,7 +165,7 @@ masksDirectory = './masks'
 testDirectory = "./area"
 
 class Resize(object):
-    def __init__(self, maxsize = 1500):
+    def __init__(self, maxsize = 400):
         assert isinstance(maxsize, int)
         self.maxsize = maxsize
 
@@ -329,13 +238,13 @@ class PaddingMasks(object):
         return data
     
 transformImages = transforms.Compose([
-    Resize(1500),
+    Resize(400),
     Scale(),
     PaddingImages(16,0),
 ])
 
 transformMasks = transforms.Compose([
-    Resize(1500),
+    Resize(400),
     ScaleMasks(),
     PaddingMasks(16,0),
 ])
@@ -429,7 +338,7 @@ def getScale(index):
                     return float(row['Scale']) * 0.84
 
 def loadandtest():
-    filePath = './modelweights/torchmodelXYcentroid2.pth'
+    filePath = './modelweights/torchmodelXYcentroid49.pth'
     model.load_state_dict(torch.load(filePath))
     model.eval()
 
@@ -500,30 +409,40 @@ def loadandtest():
 
     plt.show()
 
-
 def checkImages(name = None):
     scale = 1
     if name:
         name += ".png"
 
         allScales = {
+            "nupcheold.png": 2.111,
+            "nupchenew.png": 2.111,
+            "rara.png": 16.88446932,
+            "raraold.png": 16.88446932,
+            "raranew.png": 16.88446932,
+            "okechobe.png": 161.0596435,
+            "michigan.png": 1801.569091814352,
+            "begnas.png": 8.843075524,
+            "saltlake.png": 461.35252038505706,
             "chola.png": 4.221832295,
             "digtsho.png": 4.221832295,
             "dudhpokhari.png": 4.221832295,
-            "imja.png": 8.443075524,
-            "lumdingcho.png": 8.443075524,
+            "dudhpokhariold.png": 4.221832295,
+            "dudhpokharinew.png": 4.221832295,
+            "imja.png": 8.843075524,
+            "lumdingcho.png": 8.84307552,
             "nupchu.png": 4.221832295,
             "tampokharisabai.png": 4.221832295,
-            "thulagidona.png": 8.443075524,
+            "thulagidona.png": 8.84307552,
             "tshorolpa.png": 16.88446932,
-            "westcham.png": 8.443075524,
+            "westcham.png": 8.84307552,
         }
 
         scale = allScales[name]
 
         checkdataset = CustomCheckDataSet(testDirectory, name, transformImages=transformImages)
         checkLoader = DataLoader(checkdataset, batch_size=1, shuffle=True)
-        filePath = './modelweights/torchmodelXcentroid2.pth'
+        filePath = './modelweights/torchmodelXcentroid49.pth'
         model.load_state_dict(torch.load(filePath))
         model.eval()
         
@@ -531,10 +450,72 @@ def checkImages(name = None):
         nexamples = 1
         
         print(f"Visualizing the Images and the Predicted Masks for {nexamples} Test Data for {name} w/ scale {scale}.")
+        fig, (ax1, ax2) = plt.subplots(nexamples, 2, figsize=(15, nexamples*7), constrained_layout=False)
+        for ele in checkLoader:
+            images = ele
+            images = images.to(device)
+            
+            with torch.no_grad():
+                outputs = model(images)
+                outputs = torch.where(outputs > 0.5, torch.tensor(1.0), torch.tensor(0.0))
+
+
+                outputs *= 255
+                outputs = outputs.to(torch.uint8)
+            
+            for i in range(images.size(0)):
+                ax1.set_title('Glacial Lake Image')
+                ax1.imshow(np.transpose(images[i].cpu().numpy(), (1, 2, 0)))
+
+                # ax1.set_title('UNet Predicted Lake mask')
+                # ax1.imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
+
+                grayMask = cv2.cvtColor(np.float32(np.transpose(outputs[i].cpu().numpy(), (1, 2, 0))), cv2.COLOR_BGR2GRAY)
+
+                grayMask = np.uint8(grayMask)
+                whiteMask = np.where(grayMask > 0.5, 255, 0)
+                ax2.set_title('UNet Predicted Lake mask')
+                ax2.imshow(whiteMask, cmap='gray')
+                calcArea, calcCentX, calcCentY = calcAreaandCentroid(grayMask)
+
+                contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                maskArea = 0
+                centroidX = 0
+                centroidY = 0
+
+                for contour in contours:
+                    area = cv2.contourArea(contour)
+                    maskArea += area
+
+                    centroid = cv2.moments(contour)
+
+                    if centroid["m00"] != 0:
+                        cX = int(centroid["m10"] / centroid["m00"])
+                        cY = int(centroid["m01"] / centroid["m00"])
+
+                        centroidX += cX * area
+                        centroidY += cY * area
+                    
+                    if area > 0:
+                        centroidX = centroidX / area
+                        centroidY = centroidY / area
+
+                # TODO: Scale the centroidX and centroidY to the original image size, and then add it to the centeral cooridnates of the original image
+                centroidX = centroidX 
+                centroidY = centroidY
+
+                #TODO: Scale the area to the original image size
+                maskArea = maskArea * scale * scale
+                calcArea = calcArea * scale * scale
+                print(scale)
+                print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
+                print(f"Calculated Centroid and Area for the Mask are {calcCentX:.2f}, {calcCentY:.2f}, {calcArea:.2f}")
+ 
     else:
         checkdataset = CustomTestDataSet(testDirectory, transformImages=transformImages)
         checkLoader = DataLoader(checkdataset, batch_size=1, shuffle=True)
-        filePath = './modelweights/torchmodelXYcentroid36.pth'
+        filePath = './modelweights/torchmodelScentroid2.pth'
         model.load_state_dict(torch.load(filePath))
         model.eval()
         
@@ -543,67 +524,67 @@ def checkImages(name = None):
         print(f"Visualizing the Images and the Predicted Masks for {nexamples} Test Data w/ scale {scale}.")
 
 
-    fig, axs = plt.subplots(nexamples, 2, figsize=(14, nexamples*7), constrained_layout=True)
-    for ax, ele in zip(axs, checkLoader):
-        images = ele
-        images = images.to(device)
-        
-        with torch.no_grad():
-            outputs = model(images)
-            outputs = torch.where(outputs > 0.5, torch.tensor(1.0), torch.tensor(0.0))
-
-
-            outputs *= 255
-            outputs = outputs.to(torch.uint8)
+        fig, axs = plt.subplots(nexamples, 2, figsize=(14, nexamples*7), constrained_layout=True)
+        for ax, ele in zip(axs, checkLoader):
+            images = ele
+            images = images.to(device)
             
-        for i in range(images.size(0)):
-            # ax.set_title('Glacial Lake Image')
-            # ax.imshow(np.transpose(images[i].cpu().numpy(), (1, 2, 0)))
+            with torch.no_grad():
+                outputs = model(images)
+                outputs = torch.where(outputs > 0.5, torch.tensor(1.0), torch.tensor(0.0))
 
-            ax.set_title('UNet Predicted Lake mask')
-            ax.imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
 
-            grayMask = cv2.cvtColor(np.float32(np.transpose(outputs[i].cpu().numpy(), (1, 2, 0))), cv2.COLOR_BGR2GRAY)
+                outputs *= 255
+                outputs = outputs.to(torch.uint8)
+            
+            for i in range(images.size(0)):
+                # ax.set_title('Glacial Lake Image')
+                # ax.imshow(np.transpose(images[i].cpu().numpy(), (1, 2, 0)))
 
-            grayMask = np.uint8(grayMask)
-            whiteMask = np.where(grayMask > 0.5, 255, 0)
-            ax.set_title('UNet Predicted Lake mask')
-            ax.imshow(whiteMask, cmap='gray')
-            calcArea, calcCentX, calcCentY = calcAreaandCentroid(grayMask)
+                ax.set_title('UNet Predicted Lake mask')
+                ax.imshow(np.transpose(outputs[i].cpu().numpy(), (1,2,0)))
 
-            contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                grayMask = cv2.cvtColor(np.float32(np.transpose(outputs[i].cpu().numpy(), (1, 2, 0))), cv2.COLOR_BGR2GRAY)
 
-            maskArea = 0
-            centroidX = 0
-            centroidY = 0
+                grayMask = np.uint8(grayMask)
+                whiteMask = np.where(grayMask > 0.5, 255, 0)
+                ax.set_title('UNet Predicted Lake mask')
+                ax.imshow(whiteMask, cmap='gray')
+                calcArea, calcCentX, calcCentY = calcAreaandCentroid(grayMask)
 
-            for contour in contours:
-                area = cv2.contourArea(contour)
-                maskArea += area
+                contours, _ = cv2.findContours(grayMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-                centroid = cv2.moments(contour)
+                maskArea = 0
+                centroidX = 0
+                centroidY = 0
 
-                if centroid["m00"] != 0:
-                    cX = int(centroid["m10"] / centroid["m00"])
-                    cY = int(centroid["m01"] / centroid["m00"])
+                for contour in contours:
+                    area = cv2.contourArea(contour)
+                    maskArea += area
 
-                    centroidX += cX * area
-                    centroidY += cY * area
-                
-                if area > 0:
-                    centroidX = centroidX / area
-                    centroidY = centroidY / area
+                    centroid = cv2.moments(contour)
 
-            # TODO: Scale the centroidX and centroidY to the original image size, and then add it to the centeral cooridnates of the original image
-            centroidX = centroidX 
-            centroidY = centroidY
+                    if centroid["m00"] != 0:
+                        cX = int(centroid["m10"] / centroid["m00"])
+                        cY = int(centroid["m01"] / centroid["m00"])
 
-            #TODO: Scale the area to the original image size
-            maskArea = maskArea * scale * scale
-            calcArea = calcArea * scale * scale
-            print(scale)
-            print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
-            print(f"Calculated Centroid and Area for the Mask are {calcCentX:.2f}, {calcCentY:.2f}, {calcArea:.2f}")
+                        centroidX += cX * area
+                        centroidY += cY * area
+                    
+                    if area > 0:
+                        centroidX = centroidX / area
+                        centroidY = centroidY / area
+
+                # TODO: Scale the centroidX and centroidY to the original image size, and then add it to the centeral cooridnates of the original image
+                centroidX = centroidX 
+                centroidY = centroidY
+
+                #TODO: Scale the area to the original image size
+                maskArea = maskArea * scale * scale
+                calcArea = calcArea * scale * scale
+                print(scale)
+                print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
+                print(f"Calculated Centroid and Area for the Mask are {calcCentX:.2f}, {calcCentY:.2f}, {calcArea:.2f}")
     
     plt.show()
 
