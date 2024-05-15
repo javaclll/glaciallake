@@ -15,7 +15,6 @@ function App() {
     const file = event.target.files[0];
     const reader = new FileReader();
 
-    // Validate file type (only images)
     if (!file || !file.type.startsWith("image/")) {
       alert("Please upload a valid image file.");
       return;
@@ -29,7 +28,7 @@ function App() {
         canvas.width = img.width;
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
-        setImage(file); // Store the file for submission
+        setImage(file);
       };
       img.src = e.target.result;
     };
@@ -64,45 +63,44 @@ function App() {
       .then((data) => {
         setArea(data.area);
         setCentroid(data.centroid);
-        console.log(data.image);
         setProcessedImage(data.image);
         setIsFetching(false);
       })
       .catch((error) => {
         console.error("Error fetching area and centroid:", error);
+        setIsFetching(false);
       });
   };
 
   return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="flex flex-col items-center w-full max-w-screen-lg p-6 rounded-lg bg-gray-100 border border-black">
-        <h1 className="text-3xl font-bold mb-8 text-center">
+    <div className="flex justify-center items-center h-screen bg-gray-300">
+      <div className="flex flex-col items-center w-full max-w-screen-lg p-6 rounded-lg bg-gray-100 shadow-md border border-black">
+        <h1 className="text-4xl font-bold mb-8 text-center text-gray-800">
           Glacial Lake Delineation
         </h1>
         <div className="flex flex-col items-center">
-          <div className="mb-4">
-            <h2 className="text-xl mb-2">Upload Image</h2>
+          <div className="mb-4 w-full">
+            <h2 className="text-2xl mb-2 text-gray-700">Upload Image</h2>
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
               onChange={handleFileUpload}
-              className="mb-2"
+              className="mb-2 p-2 border rounded w-full"
             />
             {image && (
               <div className="container">
-                {" "}
-                {/* Wrap image for centering */}
                 <img
                   src={URL.createObjectURL(image)}
                   alt="Uploaded"
-                  className="max-w-full h-auto mb-4"
+                  className="max-w-full border border-gray-500 p-1  h-auto mb-4 "
+                  style={{ maxWidth: "400px" }}
                 />
               </div>
             )}
           </div>
           <div className="mb-4 w-full">
-            <h2 className="text-xl mb-2">Scale</h2>
+            <h2 className="text-2xl mb-2 text-gray-700">Scale</h2>
             <select
               value={scale}
               onChange={handleScaleChange}
@@ -154,25 +152,33 @@ function App() {
           </button>
         </div>
         {processedImage && (
-          <div className="mt-8 justify-center">
-            <h2 className="text-xl mb-4 font-medium">Results</h2>
-            {area !== null && (
-              <p className="text-lg">Area: {area.toFixed(2)} units²</p>
-            )}
-            {centroid && (
-              <p className="text-lg">
-                Centroid: (X: {centroid[0].toFixed(2)}, Y:{" "}
-                {centroid[1].toFixed(2)}) units
-              </p>
-            )}
-            <div className="mt-4">
-              <h3 className="text-lg mb-2">Processed Image:</h3>
-              <img
-                src={`data:image/png;base64,${processedImage}`}
-                alt="Processed"
-                className="max-w-full h-auto"
-                style={{ maxWidth: "400px" }}
-              />
+          <div className="flex flex-col mt-8 w-full items-center justify-center border-t border-gray-500">
+            <h2 className="text-2xl mb-4 mt-5 font-bold text-gray-700">
+              Results
+            </h2>
+            <div className="bg-gray-100 p-4 rounded-lg  w-full ">
+              {area !== null && (
+                <p className="text-lg mb-2 text-center">
+                  Area: {area.toFixed(2)} meter²
+                </p>
+              )}
+              {centroid && (
+                <p className="text-lg mb-4 text-center">
+                  Centroid: (X: {centroid[0].toFixed(2)}, Y:{" "}
+                  {centroid[1].toFixed(2)}) meter
+                </p>
+              )}
+              <div className="flex flex-col items-center mt-4 text-center">
+                <h3 className="text-lg mb-2 font-bold text-gray-700">
+                  Segmented Image Mask from UNet Model
+                </h3>
+                <img
+                  src={`data:image/png;base64,${processedImage}`}
+                  alt="Processed"
+                  className="max-w-full h-auto border border-gray-500 p-1 items-center justify-center"
+                  style={{ maxWidth: "400px" }}
+                />
+              </div>
             </div>
           </div>
         )}

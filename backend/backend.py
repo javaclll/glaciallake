@@ -24,7 +24,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-    
+
+scaleValueMap = {
+    "10": 0.10394100844860077,
+    "30": 0.10394100844860077,
+    "50": 0.09130698442459106,
+    "70": 0.1150854229927063,
+    "200": 0.102478988468647,
+    "500": 0.09072770178318024,
+    "1000": 0.11125108599662781,
+    "2000": 0.11125108599662781,
+    "3000": 0.10487890243530273,
+    "5000": 0.07409382611513138,
+    "10000": 0.0821211189031601,
+    "20000": 0.07376280426979065,
+    "30000": 0.0584530234336853,
+    "40000": 0.0623149499297142,
+    "50000": 0.12603674829006195,
+    "100000": 0.06328043341636658
+}
+
 class ProcessedData(BaseModel):
     area: float
     centroid: Tuple[float, float]
@@ -67,19 +86,19 @@ def encode_image_to_base64(image: np.ndarray) -> str:
 
 @app.post("/api/calculate", response_model=ProcessedData)
 async def calculate(file: UploadFile = File(...), scale: Annotated[int, Form()] = 1, model: Annotated[str, Form()] = './modelweights/torchmodelXcentroid2.pth'):
-    print("Scale is", scale)
+    mapValue = scaleValueMap[str(scale)]
     contents = await file.read()
     img = Image.open(BytesIO(contents))
     img = np.asarray(img)
-    print("Model is", model)
     mask, area, centroidx, centroidy = segment_image_and_calculate_values(img, scale, model)
 
     # Scale the area and centroid values
-    scaled_area = area * (scale ** 2)
+    scaled_area = area * (mapValue ** 2)
     scaled_centroid = (centroidx, centroidy)
 
     # Optionally, draw the centroid on the image for visualization
-    # cv2.circle(mask, (int(centroidx), int(centroidy)), 5, (0, 255, 0), -1)
+    mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+    cv2.circle(mask, (int(centroidx), int(centroidy)), 3, (255, 0, 0), -1)
 
     img_base64 = encode_image_to_base64(mask)
     return ProcessedData(area=scaled_area, centroid=scaled_centroid, image=img_base64)
