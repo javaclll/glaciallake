@@ -453,7 +453,6 @@ def checkImages(name = None):
             with torch.no_grad():
                 outputs = model(images)
                 outputs = torch.where(outputs > 0.5, 255, 0)
-                
             for i in range(images.size(0)):
                 ax1.set_title('Glacial Lake Image')
                 ax1.imshow(np.transpose(images[i].cpu().numpy(), (1, 2, 0)))
@@ -495,7 +494,6 @@ def checkImages(name = None):
                 #TODO: Scale the area to the original image size
                 maskArea = maskArea * scale * scale
                 calcArea = calcArea * scale * scale
-                print(scale)
                 print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
                 print(f"Calculated Centroid and Area for the Mask are {calcCentX:.2f}, {calcCentY:.2f}, {calcArea:.2f}")
     
@@ -515,7 +513,6 @@ def checkImages(name = None):
         for ax, ele in zip(axs, checkLoader):
             images = ele
             images = images.to(device)
-            
             with torch.no_grad():
                 outputs = model(images)
                 outputs = torch.where(outputs > 0.5, 255, 0)
@@ -561,7 +558,6 @@ def checkImages(name = None):
                 #TODO: Scale the area to the original image size
                 maskArea = maskArea * scale * scale
                 calcArea = calcArea * scale * scale
-                print(scale)
                 print(f"Centroid and Area for the Mask are {centroidX:.2f}, {centroidY:.2f}, {maskArea:.2f}")
                 print(f"Calculated Centroid and Area for the Mask are {calcCentX:.2f}, {calcCentY:.2f}, {calcArea:.2f}")
     
